@@ -46,13 +46,31 @@
     </header>
 
     <main class="workspace">
-      <section class="panel code-panel" aria-labelledby="codeTitle">
+      <section id="codePanel" class="panel code-panel" aria-labelledby="codeTitle">
         <div class="panel-header">
           <div>
             <span class="eyebrow">Editor</span>
             <h2 id="codeTitle">Código HTML</h2>
           </div>
-          <span id="lineCount" class="status-pill">1 línea</span>
+          <div class="panel-tools">
+            <span id="lineCount" class="status-pill">1 línea</span>
+            <button
+              id="minimizeCodeButton"
+              class="panel-icon-button"
+              type="button"
+              aria-label="Minimizar ventana de código"
+              aria-pressed="false"
+              title="Minimizar"
+            >−</button>
+            <button
+              id="maximizeCodeButton"
+              class="panel-icon-button"
+              type="button"
+              aria-label="Maximizar ventana de código"
+              aria-pressed="false"
+              title="Maximizar"
+            >□</button>
+          </div>
         </div>
 
         <div class="editor-shell">

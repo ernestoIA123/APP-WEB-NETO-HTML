@@ -11,6 +11,8 @@ const proModeButton = document.querySelector("#proModeButton");
 const addCodeButton = document.querySelector("#addCodeButton");
 const copyButton = document.querySelector("#copyButton");
 const clearButton = document.querySelector("#clearButton");
+const minimizeCodeButton = document.querySelector("#minimizeCodeButton");
+const maximizeCodeButton = document.querySelector("#maximizeCodeButton");
 const codeDialog = document.querySelector("#codeDialog");
 const newCodeInput = document.querySelector("#newCodeInput");
 const loadCodeButton = document.querySelector("#loadCodeButton");
@@ -139,14 +141,31 @@ function updateMatchLabel() {
   const total = matches.length;
   if (!searchInput.value) matchCount.textContent = "0 coincidencias";
   else if (total === 0) matchCount.textContent = "Sin coincidencias";
-  else matchCount.textContent = `${activeMatchIndex + 1} de ${total}`;
+  else {
+    const activeMatch = matches[activeMatchIndex];
+    const line = editor.value.slice(0, activeMatch.start).split("\n").length;
+    matchCount.textContent = `${activeMatchIndex + 1} de ${total} · línea ${line}`;
+  }
   previousMatch.disabled = total === 0;
   nextMatch.disabled = total === 0;
 }
 
 function updateLineNumbers() {
   const total = editor.value.split("\n").length;
-  lineNumbers.textContent = Array.from({ length: total }, (_, index) => index + 1).join("\n");
+  const matchingLines = new Set(
+    matches.map((match) => editor.value.slice(0, match.start).split("\n").length - 1)
+  );
+  const activeMatch = matches[activeMatchIndex];
+  const activeLine = activeMatch
+    ? editor.value.slice(0, activeMatch.start).split("\n").length - 1
+    : -1;
+
+  lineNumbers.innerHTML = Array.from({ length: total }, (_, index) => {
+    const classes = ["line-number"];
+    if (matchingLines.has(index)) classes.push("has-search-match");
+    if (index === activeLine) classes.push("is-active-match");
+    return `<span class="${classes.join(" ")}"><span class="line-marker"></span>${index + 1}</span>`;
+  }).join("");
   lineCount.textContent = `${total} ${total === 1 ? "línea" : "líneas"}`;
 }
 
@@ -175,6 +194,7 @@ function goToMatch(direction) {
   if (!matches.length) return;
   activeMatchIndex = (activeMatchIndex + direction + matches.length) % matches.length;
   renderHighlightedCode();
+  updateLineNumbers();
   scrollToActiveMatch();
   searchInput.focus({ preventScroll: true });
 }
@@ -403,8 +423,8 @@ function schedulePreview() {
 }
 
 function refreshEditorVisuals() {
-  updateLineNumbers();
   renderHighlightedCode();
+  updateLineNumbers();
   syncEditorScroll();
 }
 
@@ -440,6 +460,7 @@ editor.addEventListener("keydown", (event) => {
 searchInput.addEventListener("input", () => {
   activeMatchIndex = searchInput.value ? 0 : -1;
   renderHighlightedCode();
+  updateLineNumbers();
   if (matches.length) scrollToActiveMatch();
 });
 
@@ -456,8 +477,37 @@ nextMatch.addEventListener("click", () => goToMatch(1));
 proModeButton.addEventListener("click", () => {
   const enabled = document.body.classList.toggle("pro-mode");
   proModeButton.setAttribute("aria-pressed", String(enabled));
+  if (!enabled) setCodePanelState("normal");
   showToast(enabled ? "Modo Pro activado" : "Editor visual activado");
   if (enabled) requestAnimationFrame(syncEditorScroll);
+});
+
+function setCodePanelState(state) {
+  const minimized = state === "minimized";
+  const maximized = state === "maximized";
+  document.body.classList.toggle("code-minimized", minimized);
+  document.body.classList.toggle("code-maximized", maximized);
+  minimizeCodeButton.setAttribute("aria-pressed", String(minimized));
+  maximizeCodeButton.setAttribute("aria-pressed", String(maximized));
+  minimizeCodeButton.textContent = minimized ? "↺" : "−";
+  maximizeCodeButton.textContent = maximized ? "↺" : "□";
+  minimizeCodeButton.title = minimized ? "Restaurar" : "Minimizar";
+  maximizeCodeButton.title = maximized ? "Restaurar" : "Maximizar";
+  minimizeCodeButton.setAttribute("aria-label", minimized ? "Restaurar ventana de código" : "Minimizar ventana de código");
+  maximizeCodeButton.setAttribute("aria-label", maximized ? "Restaurar ventana de código" : "Maximizar ventana de código");
+  requestAnimationFrame(syncEditorScroll);
+}
+
+minimizeCodeButton.addEventListener("click", () => {
+  document.body.classList.add("pro-mode");
+  proModeButton.setAttribute("aria-pressed", "true");
+  setCodePanelState(document.body.classList.contains("code-minimized") ? "normal" : "minimized");
+});
+
+maximizeCodeButton.addEventListener("click", () => {
+  document.body.classList.add("pro-mode");
+  proModeButton.setAttribute("aria-pressed", "true");
+  setCodePanelState(document.body.classList.contains("code-maximized") ? "normal" : "maximized");
 });
 
 addCodeButton.addEventListener("click", () => {
