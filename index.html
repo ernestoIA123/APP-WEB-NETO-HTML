@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Neto HTML: editor visual de código HTML con vista previa en tiempo real."
+    />
+    <title>Neto HTML</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand" aria-label="Neto HTML">
+        <span class="brand-mark" aria-hidden="true">N</span>
+        <div>
+          <h1>Neto HTML</h1>
+          <p>Editor visual</p>
+        </div>
+      </div>
+
+      <div class="editing-controls">
+        <button id="proModeButton" class="button pro-button" type="button" aria-pressed="false">Modo Pro</button>
+        <div class="search-wrap" role="search">
+          <label class="sr-only" for="searchInput">Buscar en el código</label>
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="Buscar en el código..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <span id="matchCount" class="match-count" aria-live="polite">0 coincidencias</span>
+          <button id="previousMatch" class="icon-button" type="button" aria-label="Coincidencia anterior" title="Coincidencia anterior">↑</button>
+          <button id="nextMatch" class="icon-button" type="button" aria-label="Siguiente coincidencia" title="Siguiente coincidencia">↓</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="addCodeButton" class="button button-primary" type="button">Agregar código</button>
+        <button id="copyButton" class="button button-secondary" type="button">Copiar código</button>
+        <button id="clearButton" class="button button-ghost" type="button">Limpiar</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel code-panel" aria-labelledby="codeTitle">
+        <div class="panel-header">
+          <div>
+            <span class="eyebrow">Editor</span>
+            <h2 id="codeTitle">Código HTML</h2>
+          </div>
+          <span id="lineCount" class="status-pill">1 línea</span>
+        </div>
+
+        <div class="editor-shell">
+          <div id="lineNumbers" class="line-numbers" aria-hidden="true">1</div>
+          <div class="editor-stack">
+            <pre id="highlightLayer" class="highlight-layer" aria-hidden="true"></pre>
+            <textarea
+              id="codeEditor"
+              aria-label="Editor de código HTML"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              wrap="off"
+            ></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel preview-panel" aria-labelledby="previewTitle">
+        <div class="panel-header">
+          <div>
+            <span class="eyebrow">Resultado</span>
+            <h2 id="previewTitle">Vista previa</h2>
+          </div>
+          <div class="preview-status"><span class="live-dot"></span> En tiempo real</div>
+        </div>
+        <div class="browser-bar" aria-hidden="true">
+          <div class="browser-dots"><span></span><span></span><span></span></div>
+          <div class="address">Doble clic para editar · clic en botones para administrar enlaces</div>
+        </div>
+        <iframe
+          id="previewFrame"
+          title="Resultado del código HTML"
+          sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
+        ></iframe>
+      </section>
+    </main>
+
+    <dialog id="codeDialog" class="code-dialog">
+      <form method="dialog">
+        <div class="dialog-header">
+          <div>
+            <span class="eyebrow">Nueva página</span>
+            <h2>Agregar código HTML</h2>
+          </div>
+          <button id="closeCodeDialog" class="dialog-close" value="cancel" aria-label="Cerrar">×</button>
+        </div>
+        <p>Pega el código completo de la página que quieres editar.</p>
+        <label class="sr-only" for="newCodeInput">Código HTML de la página</label>
+        <textarea id="newCodeInput" placeholder="<!DOCTYPE html>..."></textarea>
+        <div class="dialog-actions">
+          <button class="button button-ghost" value="cancel">Cancelar</button>
+          <button id="loadCodeButton" class="button button-primary" value="default">Cargar página</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
