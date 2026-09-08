@@ -871,6 +871,8 @@ proModeButton.addEventListener("click", () => {
 });
 
 function updateCodeZoom(change) {
+  if (!zoomOutCodeButton || !zoomInCodeButton || !codeZoomLevel) return;
+
   codeZoom = Math.min(
     160,
     Math.max(60, codeZoom + change)
@@ -900,11 +902,11 @@ function updateCodeZoom(change) {
   });
 }
 
-zoomOutCodeButton.addEventListener("click", () => {
+zoomOutCodeButton?.addEventListener("click", () => {
   updateCodeZoom(-10);
 });
 
-zoomInCodeButton.addEventListener("click", () => {
+zoomInCodeButton?.addEventListener("click", () => {
   updateCodeZoom(10);
 });
 
