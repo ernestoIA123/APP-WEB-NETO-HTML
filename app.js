@@ -11,8 +11,9 @@ const proModeButton = document.querySelector("#proModeButton");
 const addCodeButton = document.querySelector("#addCodeButton");
 const copyButton = document.querySelector("#copyButton");
 const clearButton = document.querySelector("#clearButton");
-const minimizeCodeButton = document.querySelector("#minimizeCodeButton");
-const maximizeCodeButton = document.querySelector("#maximizeCodeButton");
+const zoomOutCodeButton = document.querySelector("#zoomOutCodeButton");
+const zoomInCodeButton = document.querySelector("#zoomInCodeButton");
+const codeZoomLevel = document.querySelector("#codeZoomLevel");
 const codeDialog = document.querySelector("#codeDialog");
 const newCodeInput = document.querySelector("#newCodeInput");
 const loadCodeButton = document.querySelector("#loadCodeButton");
@@ -30,7 +31,11 @@ const DEFAULT_CODE = `<!DOCTYPE html>
       padding: 48px;
       color: #172033;
     }
-    h1 { color: #1267e5; }
+
+    h1 {
+      color: #1267e5;
+    }
+
     .boton {
       display: inline-block;
       margin-top: 16px;
@@ -56,6 +61,7 @@ let activeMatchIndex = -1;
 let previewTimer;
 let toastTimer;
 let isEditingPreview = false;
+let codeZoom = 100;
 
 function escapeHtml(text) {
   return text
@@ -68,6 +74,7 @@ function escapeHtml(text) {
 
 function findMatches(text, query) {
   if (!query) return [];
+
   const found = [];
   const haystack = text.toLocaleLowerCase("es");
   const needle = query.toLocaleLowerCase("es");
@@ -75,10 +82,17 @@ function findMatches(text, query) {
 
   while (start <= haystack.length - needle.length) {
     const index = haystack.indexOf(needle, start);
+
     if (index === -1) break;
-    found.push({ start: index, end: index + query.length });
+
+    found.push({
+      start: index,
+      end: index + query.length
+    });
+
     start = index + Math.max(query.length, 1);
   }
+
   return found;
 }
 
@@ -90,11 +104,20 @@ function findLinkRanges(text) {
   for (const match of text.matchAll(attributePattern)) {
     const value = match[2];
     const offset = match[0].indexOf(value);
-    ranges.push({ start: match.index + offset, end: match.index + offset + value.length });
+
+    ranges.push({
+      start: match.index + offset,
+      end: match.index + offset + value.length
+    });
   }
+
   for (const match of text.matchAll(urlPattern)) {
-    ranges.push({ start: match.index, end: match.index + match[0].length });
+    ranges.push({
+      start: match.index,
+      end: match.index + match[0].length
+    });
   }
+
   return ranges;
 }
 
@@ -104,69 +127,127 @@ function isInside(index, range) {
 
 function renderHighlightedCode() {
   const text = editor.value;
+
   matches = findMatches(text, searchInput.value);
+
   const linkRanges = findLinkRanges(text);
 
-  if (matches.length === 0) activeMatchIndex = -1;
-  if (matches.length > 0 && activeMatchIndex < 0) activeMatchIndex = 0;
-  if (activeMatchIndex >= matches.length) activeMatchIndex = matches.length - 1;
+  if (matches.length === 0) {
+    activeMatchIndex = -1;
+  }
+
+  if (matches.length > 0 && activeMatchIndex < 0) {
+    activeMatchIndex = 0;
+  }
+
+  if (activeMatchIndex >= matches.length) {
+    activeMatchIndex = matches.length - 1;
+  }
 
   const boundaries = new Set([0, text.length]);
+
   [...matches, ...linkRanges].forEach(({ start, end }) => {
     boundaries.add(start);
     boundaries.add(end);
   });
+
   const points = [...boundaries].sort((a, b) => a - b);
 
   let html = "";
+
   for (let index = 0; index < points.length - 1; index += 1) {
     const start = points[index];
     const end = points[index + 1];
     const classes = [];
-    if (linkRanges.some((range) => isInside(start, range))) classes.push("code-link");
-    const matchIndex = matches.findIndex((range) => isInside(start, range));
+
+    if (linkRanges.some((range) => isInside(start, range))) {
+      classes.push("code-link");
+    }
+
+    const matchIndex = matches.findIndex((range) =>
+      isInside(start, range)
+    );
+
     if (matchIndex !== -1) {
       classes.push("search-match");
-      if (matchIndex === activeMatchIndex) classes.push("active-match");
+
+      if (matchIndex === activeMatchIndex) {
+        classes.push("active-match");
+      }
     }
+
     const content = escapeHtml(text.slice(start, end));
-    html += classes.length ? `<span class="${classes.join(" ")}">${content}</span>` : content;
+
+    html += classes.length
+      ? `<span class="${classes.join(" ")}">${content}</span>`
+      : content;
   }
 
   highlightLayer.innerHTML = `${html}\n`;
+
   updateMatchLabel();
 }
 
 function updateMatchLabel() {
   const total = matches.length;
-  if (!searchInput.value) matchCount.textContent = "0 coincidencias";
-  else if (total === 0) matchCount.textContent = "Sin coincidencias";
-  else {
+
+  if (!searchInput.value) {
+    matchCount.textContent = "0 coincidencias";
+  } else if (total === 0) {
+    matchCount.textContent = "Sin coincidencias";
+  } else {
     const activeMatch = matches[activeMatchIndex];
-    const line = editor.value.slice(0, activeMatch.start).split("\n").length;
-    matchCount.textContent = `${activeMatchIndex + 1} de ${total} · línea ${line}`;
+
+    const line = editor.value
+      .slice(0, activeMatch.start)
+      .split("\n").length;
+
+    matchCount.textContent =
+      `${activeMatchIndex + 1} de ${total} · línea ${line}`;
   }
+
   previousMatch.disabled = total === 0;
   nextMatch.disabled = total === 0;
 }
 
 function updateLineNumbers() {
   const total = editor.value.split("\n").length;
+
   const matchingLines = new Set(
-    matches.map((match) => editor.value.slice(0, match.start).split("\n").length - 1)
+    matches.map((match) =>
+      editor.value.slice(0, match.start).split("\n").length - 1
+    )
   );
+
   const activeMatch = matches[activeMatchIndex];
+
   const activeLine = activeMatch
     ? editor.value.slice(0, activeMatch.start).split("\n").length - 1
     : -1;
 
-  lineNumbers.innerHTML = Array.from({ length: total }, (_, index) => {
-    const classes = ["line-number"];
-    if (matchingLines.has(index)) classes.push("has-search-match");
-    if (index === activeLine) classes.push("is-active-match");
-    return `<span class="${classes.join(" ")}"><span class="line-marker"></span>${index + 1}</span>`;
-  }).join("");
-  lineCount.textContent = `${total} ${total === 1 ? "línea" : "líneas"}`;
+  lineNumbers.innerHTML = Array.from(
+    { length: total },
+    (_, index) => {
+      const classes = ["line-number"];
+
+      if (matchingLines.has(index)) {
+        classes.push("has-search-match");
+      }
+
+      if (index === activeLine) {
+        classes.push("is-active-match");
+      }
+
+      return `
+        <span class="${classes.join(" ")}">
+          <span class="line-marker"></span>${index + 1}
+        </span>
+      `;
+    }
+  ).join("");
+
+  lineCount.textContent =
+    `${total} ${total === 1 ? "línea" : "líneas"}`;
 }
 
 function syncEditorScroll() {
@@ -177,11 +258,20 @@ function syncEditorScroll() {
 
 function scrollToActiveMatch({ focusEditor = false } = {}) {
   const match = matches[activeMatchIndex];
+
   if (!match) return;
+
   const textBefore = editor.value.slice(0, match.start);
   const lineIndex = textBefore.split("\n").length - 1;
   const lineHeight = parseFloat(getComputedStyle(editor).lineHeight);
-  editor.scrollTop = Math.max(0, lineIndex * lineHeight - editor.clientHeight / 2 + lineHeight);
+
+  editor.scrollTop = Math.max(
+    0,
+    lineIndex * lineHeight -
+      editor.clientHeight / 2 +
+      lineHeight
+  );
+
   syncEditorScroll();
 
   if (focusEditor) {
@@ -192,85 +282,211 @@ function scrollToActiveMatch({ focusEditor = false } = {}) {
 
 function goToMatch(direction) {
   if (!matches.length) return;
-  activeMatchIndex = (activeMatchIndex + direction + matches.length) % matches.length;
+
+  activeMatchIndex =
+    (activeMatchIndex + direction + matches.length) %
+    matches.length;
+
   renderHighlightedCode();
   updateLineNumbers();
   scrollToActiveMatch();
+
   searchInput.focus({ preventScroll: true });
 }
 
 function previewTools() {
   return `
     <style data-neto-preview-tool>
-      [data-neto-editing] { outline: 2px dashed #19a767 !important; outline-offset: 3px; cursor: text; }
-      .neto-image-dialog { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; padding: 18px; background: rgba(5, 10, 16, .68); font-family: Arial, sans-serif; }
-      .neto-image-box { width: min(560px, 100%); padding: 20px; border-radius: 14px; color: #172033; background: white; box-shadow: 0 20px 70px rgba(0,0,0,.35); }
-      .neto-image-box strong { display: block; margin-bottom: 8px; font-size: 18px; }
-      .neto-image-box p { margin: 0 0 12px; color: #5d6675; font-size: 14px; }
-      .neto-image-box textarea { width: 100%; min-height: 110px; resize: vertical; padding: 11px; border: 1px solid #bcc7d6; border-radius: 8px; color: #172033; background: #f7f9fc; font: 14px/1.45 monospace; }
-      .neto-image-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-      .neto-image-actions button { min-height: 40px; padding: 0 15px; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; }
-      .neto-cancel { color: #475569; background: #e9eef5; }
-      .neto-save { color: white; background: #168955; }
-      .neto-open { color: white; background: #1768d8; }
-      .neto-edit-link { color: white; background: #7c3aed; }
-      .neto-image-actions button:disabled { opacity: .45; cursor: not-allowed; }
+      [data-neto-editing] {
+        outline: 2px dashed #19a767 !important;
+        outline-offset: 3px;
+        cursor: text;
+      }
+
+      .neto-image-dialog {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+        background: rgba(5, 10, 16, .68);
+        font-family: Arial, sans-serif;
+      }
+
+      .neto-image-box {
+        width: min(560px, 100%);
+        padding: 20px;
+        border-radius: 14px;
+        color: #172033;
+        background: white;
+        box-shadow: 0 20px 70px rgba(0, 0, 0, .35);
+      }
+
+      .neto-image-box strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 18px;
+      }
+
+      .neto-image-box p {
+        margin: 0 0 12px;
+        color: #5d6675;
+        font-size: 14px;
+      }
+
+      .neto-image-box textarea {
+        width: 100%;
+        min-height: 110px;
+        resize: vertical;
+        padding: 11px;
+        border: 1px solid #bcc7d6;
+        border-radius: 8px;
+        color: #172033;
+        background: #f7f9fc;
+        font: 14px/1.45 monospace;
+      }
+
+      .neto-image-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .neto-image-actions button {
+        min-height: 40px;
+        padding: 0 15px;
+        border: 0;
+        border-radius: 8px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .neto-cancel {
+        color: #475569;
+        background: #e9eef5;
+      }
+
+      .neto-save {
+        color: white;
+        background: #168955;
+      }
+
+      .neto-open {
+        color: white;
+        background: #1768d8;
+      }
+
+      .neto-edit-link {
+        color: white;
+        background: #7c3aed;
+      }
+
+      .neto-image-actions button:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+      }
     </style>
+
     <script data-neto-preview-tool>
       (() => {
         let pendingButtonTimer;
 
         const sendCleanHtml = () => {
           const clone = document.documentElement.cloneNode(true);
-          clone.querySelectorAll('[data-neto-preview-tool], .neto-image-dialog').forEach((node) => node.remove());
-          clone.querySelectorAll('[data-neto-editing]').forEach((node) => {
-            node.removeAttribute('data-neto-editing');
-            node.removeAttribute('contenteditable');
-          });
-          parent.postMessage({ type: 'neto-preview-html', html: '<!DOCTYPE html>\\n' + clone.outerHTML }, '*');
+
+          clone
+            .querySelectorAll(
+              '[data-neto-preview-tool], .neto-image-dialog'
+            )
+            .forEach((node) => node.remove());
+
+          clone
+            .querySelectorAll('[data-neto-editing]')
+            .forEach((node) => {
+              node.removeAttribute('data-neto-editing');
+              node.removeAttribute('contenteditable');
+            });
+
+          parent.postMessage(
+            {
+              type: 'neto-preview-html',
+              html: '<!DOCTYPE html>\\n' + clone.outerHTML
+            },
+            '*'
+          );
         };
 
         const selectContents = (element) => {
           const range = document.createRange();
+
           range.selectNodeContents(element);
+
           const selection = window.getSelection();
+
           selection.removeAllRanges();
           selection.addRange(range);
         };
 
         const editImage = (image) => {
           const overlay = document.createElement('div');
+
           overlay.className = 'neto-image-dialog';
           overlay.setAttribute('data-neto-preview-tool', '');
+
           const box = document.createElement('div');
           box.className = 'neto-image-box';
+
           const title = document.createElement('strong');
           title.textContent = 'Código o enlace de la imagen';
+
           const description = document.createElement('p');
-          description.textContent = 'Pega aquí tu enlace de Cloudinary o la URL de la imagen.';
+          description.textContent =
+            'Pega aquí tu enlace de Cloudinary o la URL de la imagen.';
+
           const input = document.createElement('textarea');
           input.value = image.getAttribute('src') || '';
           input.placeholder = 'https://res.cloudinary.com/...';
+
           const actions = document.createElement('div');
           actions.className = 'neto-image-actions';
+
           const cancel = document.createElement('button');
           cancel.className = 'neto-cancel';
           cancel.textContent = 'Cancelar';
+
           const save = document.createElement('button');
           save.className = 'neto-save';
           save.textContent = 'Cambiar imagen';
+
           actions.append(cancel, save);
           box.append(title, description, input, actions);
           overlay.append(box);
+
           document.body.append(overlay);
+
           input.focus();
           input.select();
 
-          cancel.addEventListener('click', () => overlay.remove());
-          overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
+          cancel.addEventListener('click', () => {
+            overlay.remove();
+          });
+
+          overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+              overlay.remove();
+            }
+          });
+
           save.addEventListener('click', () => {
             const newSource = input.value.trim();
-            if (!newSource) return input.focus();
+
+            if (!newSource) {
+              input.focus();
+              return;
+            }
+
             image.setAttribute('src', newSource);
             overlay.remove();
             sendCleanHtml();
@@ -278,74 +494,133 @@ function previewTools() {
         };
 
         const buttonLink = (control) => {
-          if (control instanceof HTMLAnchorElement) return control.getAttribute('href') || '';
-          return control.getAttribute('data-link') || control.getAttribute('formaction') || '';
+          if (control instanceof HTMLAnchorElement) {
+            return control.getAttribute('href') || '';
+          }
+
+          return (
+            control.getAttribute('data-link') ||
+            control.getAttribute('formaction') ||
+            ''
+          );
         };
 
         const saveButtonLink = (control, value) => {
-          if (control instanceof HTMLAnchorElement) control.setAttribute('href', value);
-          else if (control.hasAttribute('formaction')) control.setAttribute('formaction', value);
-          else {
+          if (control instanceof HTMLAnchorElement) {
+            control.setAttribute('href', value);
+          } else if (control.hasAttribute('formaction')) {
+            control.setAttribute('formaction', value);
+          } else {
             control.setAttribute('data-link', value);
-            control.setAttribute('onclick', 'location.href=this.dataset.link');
+            control.setAttribute(
+              'onclick',
+              'location.href=this.dataset.link'
+            );
           }
         };
 
         const showButtonActions = (control) => {
           const overlay = document.createElement('div');
+
           overlay.className = 'neto-image-dialog';
           overlay.setAttribute('data-neto-preview-tool', '');
+
           const box = document.createElement('div');
           box.className = 'neto-image-box';
+
           const title = document.createElement('strong');
           title.textContent = 'Enlace del botón';
+
           const description = document.createElement('p');
           const currentLink = buttonLink(control);
-          description.textContent = currentLink || 'Este botón todavía no tiene un enlace.';
+
+          description.textContent =
+            currentLink ||
+            'Este botón todavía no tiene un enlace.';
+
           const actions = document.createElement('div');
           actions.className = 'neto-image-actions';
+
           const cancel = document.createElement('button');
           cancel.className = 'neto-cancel';
           cancel.textContent = 'Cancelar';
+
           const open = document.createElement('button');
           open.className = 'neto-open';
           open.textContent = 'Abrir enlace';
           open.disabled = !currentLink;
+
           const edit = document.createElement('button');
           edit.className = 'neto-edit-link';
           edit.textContent = 'Editar enlace';
+
           actions.append(cancel, open, edit);
           box.append(title, description, actions);
           overlay.append(box);
+
           document.body.append(overlay);
 
-          const close = () => overlay.remove();
+          const close = () => {
+            overlay.remove();
+          };
+
           cancel.addEventListener('click', close);
-          overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
-          open.addEventListener('click', () => {
-            if (!currentLink || /^javascript:/i.test(currentLink)) return;
-            window.open(new URL(currentLink, document.baseURI).href, '_blank', 'noopener');
+
+          overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+              close();
+            }
           });
+
+          open.addEventListener('click', () => {
+            if (
+              !currentLink ||
+              /^javascript:/i.test(currentLink)
+            ) {
+              return;
+            }
+
+            window.open(
+              new URL(currentLink, document.baseURI).href,
+              '_blank',
+              'noopener'
+            );
+          });
+
           edit.addEventListener('click', () => {
-            description.textContent = 'Escribe o pega el nuevo enlace del botón.';
+            description.textContent =
+              'Escribe o pega el nuevo enlace del botón.';
+
             actions.innerHTML = '';
+
             const input = document.createElement('textarea');
             input.value = currentLink;
             input.placeholder = 'https://...';
+
             const save = document.createElement('button');
             save.className = 'neto-save';
             save.textContent = 'Guardar enlace';
+
             const back = document.createElement('button');
             back.className = 'neto-cancel';
             back.textContent = 'Cancelar';
+
             actions.append(back, save);
             box.insertBefore(input, actions);
+
             input.focus();
             input.select();
+
             back.addEventListener('click', close);
+
             save.addEventListener('click', () => {
               const value = input.value.trim();
-              if (!value) return input.focus();
+
+              if (!value) {
+                input.focus();
+                return;
+              }
+
               saveButtonLink(control, value);
               close();
               sendCleanHtml();
@@ -353,55 +628,125 @@ function previewTools() {
           });
         };
 
-        document.addEventListener('click', (event) => {
-          const target = event.target;
-          if (!(target instanceof Element) || target.closest('.neto-image-dialog')) return;
-          const control = target.closest('a, button, [role="button"], input[type="button"], input[type="submit"]');
-          if (!control || control.hasAttribute('data-neto-editing')) return;
-          event.preventDefault();
-          event.stopPropagation();
-          clearTimeout(pendingButtonTimer);
-          pendingButtonTimer = setTimeout(() => showButtonActions(control), 220);
-        }, true);
+        document.addEventListener(
+          'click',
+          (event) => {
+            const target = event.target;
 
-        document.addEventListener('dblclick', (event) => {
-          clearTimeout(pendingButtonTimer);
-          const target = event.target;
-          if (!(target instanceof Element) || target.closest('.neto-image-dialog')) return;
-          event.preventDefault();
-          event.stopPropagation();
+            if (
+              !(target instanceof Element) ||
+              target.closest('.neto-image-dialog')
+            ) {
+              return;
+            }
 
-          if (target instanceof HTMLImageElement) {
-            editImage(target);
-            return;
-          }
+            const control = target.closest(
+              'a, button, [role="button"], input[type="button"], input[type="submit"]'
+            );
 
-          if (target.closest('a, button, [role="button"], input[type="button"], input[type="submit"]')) return;
+            if (
+              !control ||
+              control.hasAttribute('data-neto-editing')
+            ) {
+              return;
+            }
 
-          const blocked = ['HTML', 'BODY', 'SCRIPT', 'STYLE', 'LINK', 'META', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION'];
-          if (blocked.includes(target.tagName)) return;
-          target.setAttribute('contenteditable', 'true');
-          target.setAttribute('data-neto-editing', '');
-          target.focus();
-          selectContents(target);
+            event.preventDefault();
+            event.stopPropagation();
 
-          let timer;
-          const sync = () => {
-            clearTimeout(timer);
-            timer = setTimeout(sendCleanHtml, 80);
-          };
-          const finish = () => {
-            clearTimeout(timer);
-            target.removeAttribute('contenteditable');
-            target.removeAttribute('data-neto-editing');
-            sendCleanHtml();
-          };
-          target.addEventListener('input', sync);
-          target.addEventListener('blur', finish, { once: true });
-          target.addEventListener('keydown', (keyEvent) => {
-            if (keyEvent.key === 'Escape') target.blur();
-          });
-        }, true);
+            clearTimeout(pendingButtonTimer);
+
+            pendingButtonTimer = setTimeout(
+              () => showButtonActions(control),
+              220
+            );
+          },
+          true
+        );
+
+        document.addEventListener(
+          'dblclick',
+          (event) => {
+            clearTimeout(pendingButtonTimer);
+
+            const target = event.target;
+
+            if (
+              !(target instanceof Element) ||
+              target.closest('.neto-image-dialog')
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (target instanceof HTMLImageElement) {
+              editImage(target);
+              return;
+            }
+
+            if (
+              target.closest(
+                'a, button, [role="button"], input[type="button"], input[type="submit"]'
+              )
+            ) {
+              return;
+            }
+
+            const blocked = [
+              'HTML',
+              'BODY',
+              'SCRIPT',
+              'STYLE',
+              'LINK',
+              'META',
+              'INPUT',
+              'TEXTAREA',
+              'SELECT',
+              'OPTION'
+            ];
+
+            if (blocked.includes(target.tagName)) {
+              return;
+            }
+
+            target.setAttribute('contenteditable', 'true');
+            target.setAttribute('data-neto-editing', '');
+            target.focus();
+
+            selectContents(target);
+
+            let timer;
+
+            const sync = () => {
+              clearTimeout(timer);
+              timer = setTimeout(sendCleanHtml, 80);
+            };
+
+            const finish = () => {
+              clearTimeout(timer);
+              target.removeAttribute('contenteditable');
+              target.removeAttribute('data-neto-editing');
+              sendCleanHtml();
+            };
+
+            target.addEventListener('input', sync);
+
+            target.addEventListener(
+              'blur',
+              finish,
+              { once: true }
+            );
+
+            target.addEventListener('keydown', (keyEvent) => {
+              if (keyEvent.key === 'Escape') {
+                target.blur();
+              }
+            });
+          },
+          true
+        );
       })();
     <\/script>
   `;
@@ -409,16 +754,22 @@ function previewTools() {
 
 function updatePreview() {
   if (isEditingPreview) return;
+
   const linkStyle = `
     <style data-neto-preview-tool>
-      a:not([class]) { color: #0666d6 !important; }
+      a:not([class]) {
+        color: #0666d6 !important;
+      }
     </style>
   `;
-  previewFrame.srcdoc = `${linkStyle}${editor.value}${previewTools()}`;
+
+  previewFrame.srcdoc =
+    `${linkStyle}${editor.value}${previewTools()}`;
 }
 
 function schedulePreview() {
   clearTimeout(previewTimer);
+
   previewTimer = setTimeout(updatePreview, 120);
 }
 
@@ -436,21 +787,37 @@ function updateEverything() {
 
 function showToast(message) {
   clearTimeout(toastTimer);
+
   toast.textContent = message;
   toast.classList.add("show");
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 1800);
 }
 
 editor.addEventListener("input", updateEverything);
+
 editor.addEventListener("scroll", syncEditorScroll);
 
 editor.addEventListener("keydown", (event) => {
   if (event.key === "Tab") {
     event.preventDefault();
-    editor.setRangeText("  ", editor.selectionStart, editor.selectionEnd, "end");
+
+    editor.setRangeText(
+      "  ",
+      editor.selectionStart,
+      editor.selectionEnd,
+      "end"
+    );
+
     updateEverything();
   }
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === "f"
+  ) {
     event.preventDefault();
     searchInput.focus();
     searchInput.select();
@@ -459,9 +826,13 @@ editor.addEventListener("keydown", (event) => {
 
 searchInput.addEventListener("input", () => {
   activeMatchIndex = searchInput.value ? 0 : -1;
+
   renderHighlightedCode();
   updateLineNumbers();
-  if (matches.length) scrollToActiveMatch();
+
+  if (matches.length) {
+    scrollToActiveMatch();
+  }
 });
 
 searchInput.addEventListener("keydown", (event) => {
@@ -471,73 +842,120 @@ searchInput.addEventListener("keydown", (event) => {
   }
 });
 
-previousMatch.addEventListener("click", () => goToMatch(-1));
-nextMatch.addEventListener("click", () => goToMatch(1));
+previousMatch.addEventListener("click", () => {
+  goToMatch(-1);
+});
+
+nextMatch.addEventListener("click", () => {
+  goToMatch(1);
+});
 
 proModeButton.addEventListener("click", () => {
-  const enabled = document.body.classList.toggle("pro-mode");
-  proModeButton.setAttribute("aria-pressed", String(enabled));
-  if (!enabled) setCodePanelState("normal");
-  showToast(enabled ? "Modo Pro activado" : "Editor visual activado");
-  if (enabled) requestAnimationFrame(syncEditorScroll);
+  const enabled =
+    document.body.classList.toggle("pro-mode");
+
+  proModeButton.setAttribute(
+    "aria-pressed",
+    String(enabled)
+  );
+
+  showToast(
+    enabled
+      ? "Modo Pro activado"
+      : "Editor visual activado"
+  );
+
+  if (enabled) {
+    requestAnimationFrame(syncEditorScroll);
+  }
 });
 
-function setCodePanelState(state) {
-  const minimized = state === "minimized";
-  const maximized = state === "maximized";
-  document.body.classList.toggle("code-minimized", minimized);
-  document.body.classList.toggle("code-maximized", maximized);
-  minimizeCodeButton.setAttribute("aria-pressed", String(minimized));
-  maximizeCodeButton.setAttribute("aria-pressed", String(maximized));
-  minimizeCodeButton.textContent = minimized ? "↺" : "−";
-  maximizeCodeButton.textContent = maximized ? "↺" : "□";
-  minimizeCodeButton.title = minimized ? "Restaurar" : "Minimizar";
-  maximizeCodeButton.title = maximized ? "Restaurar" : "Maximizar";
-  minimizeCodeButton.setAttribute("aria-label", minimized ? "Restaurar ventana de código" : "Minimizar ventana de código");
-  maximizeCodeButton.setAttribute("aria-label", maximized ? "Restaurar ventana de código" : "Maximizar ventana de código");
-  requestAnimationFrame(syncEditorScroll);
+function updateCodeZoom(change) {
+  codeZoom = Math.min(
+    160,
+    Math.max(60, codeZoom + change)
+  );
+
+  const fontSize = 0.92 * (codeZoom / 100);
+  const lineHeight = 1.65 * (codeZoom / 100);
+
+  document.documentElement.style.setProperty(
+    "--editor-font-size",
+    `${fontSize.toFixed(3)}rem`
+  );
+
+  document.documentElement.style.setProperty(
+    "--editor-line-height",
+    `${lineHeight.toFixed(3)}rem`
+  );
+
+  codeZoomLevel.textContent = `${codeZoom}%`;
+
+  zoomOutCodeButton.disabled = codeZoom === 60;
+  zoomInCodeButton.disabled = codeZoom === 160;
+
+  requestAnimationFrame(() => {
+    syncEditorScroll();
+    scrollToActiveMatch();
+  });
 }
 
-minimizeCodeButton.addEventListener("click", () => {
-  document.body.classList.add("pro-mode");
-  proModeButton.setAttribute("aria-pressed", "true");
-  setCodePanelState(document.body.classList.contains("code-minimized") ? "normal" : "minimized");
+zoomOutCodeButton.addEventListener("click", () => {
+  updateCodeZoom(-10);
 });
 
-maximizeCodeButton.addEventListener("click", () => {
-  document.body.classList.add("pro-mode");
-  proModeButton.setAttribute("aria-pressed", "true");
-  setCodePanelState(document.body.classList.contains("code-maximized") ? "normal" : "maximized");
+zoomInCodeButton.addEventListener("click", () => {
+  updateCodeZoom(10);
 });
 
 addCodeButton.addEventListener("click", () => {
   newCodeInput.value = "";
   codeDialog.showModal();
-  requestAnimationFrame(() => newCodeInput.focus());
+
+  requestAnimationFrame(() => {
+    newCodeInput.focus();
+  });
 });
 
 loadCodeButton.addEventListener("click", (event) => {
   event.preventDefault();
+
   const code = newCodeInput.value.trim();
+
   if (!code) {
     showToast("Primero pega el código HTML");
     newCodeInput.focus();
     return;
   }
+
   editor.value = code;
   searchInput.value = "";
   activeMatchIndex = -1;
+
   updateEverything();
   codeDialog.close();
+
   showToast("Página cargada correctamente");
 });
 
 window.addEventListener("message", (event) => {
-  if (event.source !== previewFrame.contentWindow) return;
-  if (!event.data || event.data.type !== "neto-preview-html" || typeof event.data.html !== "string") return;
+  if (event.source !== previewFrame.contentWindow) {
+    return;
+  }
+
+  if (
+    !event.data ||
+    event.data.type !== "neto-preview-html" ||
+    typeof event.data.html !== "string"
+  ) {
+    return;
+  }
+
   isEditingPreview = true;
   editor.value = event.data.html;
+
   refreshEditorVisuals();
+
   showToast("Cambio aplicado al código");
 });
 
@@ -553,9 +971,13 @@ copyButton.addEventListener("click", async () => {
 });
 
 clearButton.addEventListener("click", () => {
-  if (!editor.value || window.confirm("¿Quieres borrar todo el código?")) {
+  if (
+    !editor.value ||
+    window.confirm("¿Quieres borrar todo el código?")
+  ) {
     editor.value = "";
     activeMatchIndex = -1;
+
     updateEverything();
     editor.focus();
   }
