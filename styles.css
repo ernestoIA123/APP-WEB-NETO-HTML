@@ -503,16 +503,39 @@ body:not(.pro-mode) .code-panel { display: none; }
 }
 
 @media (max-width: 540px) {
-  .topbar { padding: 12px; }
+  .topbar {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .brand { grid-column: 1; grid-row: 1; }
+
+  .actions {
+    grid-column: 1;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .editing-controls {
+    grid-column: 1;
+    grid-row: 3;
+    flex-wrap: wrap;
+  }
+
   .brand p { display: none; }
-  .actions { gap: 4px; }
-  .actions .button { padding: 0 9px; font-size: 0.76rem; }
-  .pro-button { padding-inline: 10px; }
+  .actions .button { min-height: 44px; padding: 0 10px; font-size: 0.78rem; }
+  .pro-button { width: 100%; min-height: 44px; padding-inline: 10px; }
+  .search-wrap { flex-basis: 100%; height: 48px; }
   .match-count { max-width: 88px; overflow: hidden; text-overflow: ellipsis; }
   .workspace { padding: 8px; gap: 8px; }
   .preview-panel { min-height: 65vh; }
   .code-panel { min-height: 72vh; }
   .panel { border-radius: 12px; }
+  .code-panel .status-pill { display: none; }
+  .panel-header { padding-inline: 12px; }
+  .panel-icon-button { width: 38px; height: 38px; }
   .line-numbers { min-width: 44px; padding-inline: 9px; }
   .highlight-layer, #codeEditor { padding: 14px 12px; }
   .code-dialog form { padding: 16px; }

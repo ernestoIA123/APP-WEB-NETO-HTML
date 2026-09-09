@@ -387,11 +387,57 @@ function previewTools() {
         opacity: .45;
         cursor: not-allowed;
       }
+
+      @media (pointer: coarse), (max-width: 700px) {
+        html {
+          touch-action: manipulation;
+        }
+
+        a, button, [role="button"], input[type="button"], input[type="submit"] {
+          touch-action: manipulation;
+        }
+
+        .neto-image-dialog {
+          padding: 12px;
+          align-items: end;
+        }
+
+        .neto-image-box {
+          width: 100%;
+          max-height: 88vh;
+          overflow: auto;
+          padding: 18px;
+          border-radius: 16px 16px 10px 10px;
+        }
+
+        .neto-image-box textarea {
+          min-height: 130px;
+          font-size: 16px;
+        }
+
+        .neto-image-actions {
+          flex-wrap: wrap;
+        }
+
+        .neto-image-actions button {
+          flex: 1 1 135px;
+          min-height: 48px;
+          font-size: 15px;
+        }
+      }
     </style>
 
     <script data-neto-preview-tool>
       (() => {
         let pendingButtonTimer;
+        let touchHoldTimer;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchMoved = false;
+        let touchHoldActivated = false;
+        let lastTapTime = 0;
+        let lastTapTarget = null;
+        let suppressControlClickUntil = 0;
 
         const sendCleanHtml = () => {
           const clone = document.documentElement.cloneNode(true);
@@ -628,6 +674,186 @@ function previewTools() {
           });
         };
 
+        const blockedTags = [
+          'HTML',
+          'BODY',
+          'SCRIPT',
+          'STYLE',
+          'LINK',
+          'META',
+          'INPUT',
+          'TEXTAREA',
+          'SELECT',
+          'OPTION'
+        ];
+
+        const controlSelector =
+          'a, button, [role="button"], input[type="button"], input[type="submit"]';
+
+        const beginTextEditing = (target) => {
+          if (!(target instanceof Element)) return;
+          if (target.closest('.neto-image-dialog')) return;
+          if (target.closest(controlSelector)) return;
+          if (blockedTags.includes(target.tagName)) return;
+          if (target.hasAttribute('data-neto-editing')) return;
+
+          target.setAttribute('contenteditable', 'true');
+          target.setAttribute('data-neto-editing', '');
+          target.focus();
+          selectContents(target);
+
+          let timer;
+
+          const sync = () => {
+            clearTimeout(timer);
+            timer = setTimeout(sendCleanHtml, 80);
+          };
+
+          const finish = () => {
+            clearTimeout(timer);
+            target.removeAttribute('contenteditable');
+            target.removeAttribute('data-neto-editing');
+            sendCleanHtml();
+          };
+
+          target.addEventListener('input', sync);
+          target.addEventListener('blur', finish, { once: true });
+          target.addEventListener('keydown', (keyEvent) => {
+            if (keyEvent.key === 'Escape') target.blur();
+          });
+        };
+
+        const editPreviewTarget = (target) => {
+          if (!(target instanceof Element)) return;
+          if (document.querySelector('.neto-image-dialog')) return;
+
+          if (target instanceof HTMLImageElement) {
+            editImage(target);
+            return;
+          }
+
+          beginTextEditing(target);
+        };
+
+        document.addEventListener(
+          'touchstart',
+          (event) => {
+            const target = event.target;
+
+            if (
+              !(target instanceof Element) ||
+              target.closest('.neto-image-dialog')
+            ) {
+              return;
+            }
+
+            const control = target.closest(controlSelector);
+
+            if (control) {
+              event.preventDefault();
+              event.stopPropagation();
+              clearTimeout(pendingButtonTimer);
+              suppressControlClickUntil = Date.now() + 800;
+              showButtonActions(control);
+              return;
+            }
+
+            const touch = event.touches[0];
+            if (!touch) return;
+
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            touchMoved = false;
+            touchHoldActivated = false;
+            clearTimeout(touchHoldTimer);
+
+            touchHoldTimer = setTimeout(() => {
+              if (touchMoved) return;
+              touchHoldActivated = true;
+              editPreviewTarget(target);
+            }, 550);
+          },
+          { capture: true, passive: false }
+        );
+
+        document.addEventListener(
+          'touchmove',
+          (event) => {
+            const touch = event.touches[0];
+            if (!touch) return;
+
+            if (
+              Math.abs(touch.clientX - touchStartX) > 12 ||
+              Math.abs(touch.clientY - touchStartY) > 12
+            ) {
+              touchMoved = true;
+              clearTimeout(touchHoldTimer);
+            }
+          },
+          { capture: true, passive: true }
+        );
+
+        document.addEventListener(
+          'touchend',
+          (event) => {
+            clearTimeout(touchHoldTimer);
+
+            const target = event.target;
+
+            if (
+              !(target instanceof Element) ||
+              target.closest('.neto-image-dialog') ||
+              target.closest(controlSelector)
+            ) {
+              return;
+            }
+
+            if (touchMoved) {
+              lastTapTime = 0;
+              lastTapTarget = null;
+              return;
+            }
+
+            if (touchHoldActivated) {
+              event.preventDefault();
+              event.stopPropagation();
+              lastTapTime = 0;
+              lastTapTarget = null;
+              return;
+            }
+
+            const now = Date.now();
+            const isDoubleTap =
+              lastTapTarget === target && now - lastTapTime < 420;
+
+            if (isDoubleTap) {
+              event.preventDefault();
+              event.stopPropagation();
+              editPreviewTarget(target);
+              lastTapTime = 0;
+              lastTapTarget = null;
+            } else {
+              lastTapTime = now;
+              lastTapTarget = target;
+            }
+          },
+          { capture: true, passive: false }
+        );
+
+        document.addEventListener('touchcancel', () => {
+          clearTimeout(touchHoldTimer);
+          touchMoved = true;
+        }, true);
+
+        document.addEventListener('contextmenu', (event) => {
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          if (target.closest('.neto-image-dialog')) return;
+          if (target.closest(controlSelector)) return;
+          event.preventDefault();
+          editPreviewTarget(target);
+        }, true);
+
         document.addEventListener(
           'click',
           (event) => {
@@ -641,7 +867,7 @@ function previewTools() {
             }
 
             const control = target.closest(
-              'a, button, [role="button"], input[type="button"], input[type="submit"]'
+              controlSelector
             );
 
             if (
@@ -653,6 +879,10 @@ function previewTools() {
 
             event.preventDefault();
             event.stopPropagation();
+
+            if (Date.now() < suppressControlClickUntil) {
+              return;
+            }
 
             clearTimeout(pendingButtonTimer);
 
@@ -681,69 +911,7 @@ function previewTools() {
             event.preventDefault();
             event.stopPropagation();
 
-            if (target instanceof HTMLImageElement) {
-              editImage(target);
-              return;
-            }
-
-            if (
-              target.closest(
-                'a, button, [role="button"], input[type="button"], input[type="submit"]'
-              )
-            ) {
-              return;
-            }
-
-            const blocked = [
-              'HTML',
-              'BODY',
-              'SCRIPT',
-              'STYLE',
-              'LINK',
-              'META',
-              'INPUT',
-              'TEXTAREA',
-              'SELECT',
-              'OPTION'
-            ];
-
-            if (blocked.includes(target.tagName)) {
-              return;
-            }
-
-            target.setAttribute('contenteditable', 'true');
-            target.setAttribute('data-neto-editing', '');
-            target.focus();
-
-            selectContents(target);
-
-            let timer;
-
-            const sync = () => {
-              clearTimeout(timer);
-              timer = setTimeout(sendCleanHtml, 80);
-            };
-
-            const finish = () => {
-              clearTimeout(timer);
-              target.removeAttribute('contenteditable');
-              target.removeAttribute('data-neto-editing');
-              sendCleanHtml();
-            };
-
-            target.addEventListener('input', sync);
-
-            target.addEventListener(
-              'blur',
-              finish,
-              { once: true }
-            );
-
-            target.addEventListener('keydown', (keyEvent) => {
-              if (keyEvent.key === 'Escape') {
-                target.blur();
-              }
-            });
+            editPreviewTarget(target);
           },
           true
         );
